@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.8.34330.188
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "R3读写", "R3读写\R3读写.csproj", "{E25ED11B-B595-4114-9A8F-3DD89EB5A6A5}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PVZCheat", "PVZCheat\PVZCheat.csproj", "{43B29197-00EB-4C1A-8389-2D214536BA90}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E25ED11B-B595-4114-9A8F-3DD89EB5A6A5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E25ED11B-B595-4114-9A8F-3DD89EB5A6A5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E25ED11B-B595-4114-9A8F-3DD89EB5A6A5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E25ED11B-B595-4114-9A8F-3DD89EB5A6A5}.Release|Any CPU.Build.0 = Release|Any CPU
+		{43B29197-00EB-4C1A-8389-2D214536BA90}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{43B29197-00EB-4C1A-8389-2D214536BA90}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{43B29197-00EB-4C1A-8389-2D214536BA90}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{43B29197-00EB-4C1A-8389-2D214536BA90}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2D436F99-B3BD-4322-8BD0-89112039D09C}
+	EndGlobalSection
+EndGlobal
