@@ -5,6 +5,8 @@ using System.Numerics;
 using Veldrid.Sdl2;
 using Veldrid;
 using Veldrid.StartupUtilities;
+using System.Text;
+using System.Windows.Forms;
 
 namespace PVZCheat
 {
@@ -78,6 +80,7 @@ namespace PVZCheat
 
                     SubmitUI();
 
+                    FirstBox();
                     _cl.Begin();
                     _cl.SetFramebuffer(_gd.MainSwapchain.Framebuffer);
                     _cl.ClearColorTarget(0, new RgbaFloat(_clearColor.X, _clearColor.Y, _clearColor.Z, 1f));
@@ -356,15 +359,15 @@ namespace PVZCheat
         #region imgui
         private static unsafe void SubmitUI()
         {
-            // Demo code adapted from the official Dear ImGui demo program:
-            // https://github.com/ocornut/imgui/blob/master/examples/example_win32_directx11/main.cpp#L172
+            ImGui.Begin("Another Window", ref _showAnotherWindow);
+           
+            ImGui.Text("Hello from another window!");
+            ImGui.End();
 
-            // 1. Show a simple window.
-            // Tip: if we don't call ImGui.Begin(string) / ImGui.End() the widgets automatically appears in a window called "Debug".
             {
                 ImGui.Text("");
                 ImGui.Text(string.Empty);
-                ImGui.Text("Hello, world!");                                        // Display some text (you can use a format string too)
+                ImGui.Text("hi !");                                        // Display some text (you can use a format string too)
                 ImGui.SliderFloat("float", ref _f, 0, 1, _f.ToString("0.000"));  // Edit 1 float using a slider from 0.0f to 1.0f    
                 //ImGui.ColorEdit3("clear color", ref _clearColor);                   // Edit 3 floats representing a color
 
@@ -499,6 +502,24 @@ namespace PVZCheat
             ImGui.GetWindowDrawList().AddText(ImGui.GetCursorScreenPos(), uint.MaxValue, $"{ImGui.CalcTextSize("h")}");
             ImGui.NewLine();
             ImGui.TextUnformatted("TextUnformatted now passes end ptr but isn't cut off");
+        }
+
+        /// <summary>
+        /// 第一个框
+        /// </summary>
+        private void FirstBox()
+        {
+            Color color = Color.FromArgb(50, 255, 255, 255); // 红色
+
+            int colorValue = (color.A << 24) + (color.R << 16) + (color.G << 8) + color.B;
+
+            ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 100), new Vector2(500, 200), (uint)colorValue);
+            ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 100), new Vector2(700, 100), (uint)colorValue);
+
+            ImGui.GetForegroundDrawList().AddLine(new Vector2(700, 100), new Vector2(700, 200), (uint)colorValue);
+            ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 200), new Vector2(700, 200), (uint)colorValue);
+
+            DrawUI.TransparentRectangle(new Vector2(500, 100), new Vector2(200, 200), color);
         }
         #endregion
     }
