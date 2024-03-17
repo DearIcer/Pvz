@@ -38,6 +38,8 @@
             Overlap = new CheckBox();
             AutomaticCollection = new CheckBox();
             PlantsInvincible = new CheckBox();
+            ESP = new CheckBox();
+            ESPTimer = new System.Windows.Forms.Timer(components);
             SuspendLayout();
             // 
             // InfiniteSunshine
@@ -120,11 +122,27 @@
             PlantsInvincible.UseVisualStyleBackColor = true;
             PlantsInvincible.CheckedChanged += PlantsInvincible_CheckedChanged;
             // 
+            // ESP
+            // 
+            ESP.AutoSize = true;
+            ESP.Location = new Point(17, 49);
+            ESP.Name = "ESP";
+            ESP.Size = new Size(91, 24);
+            ESP.TabIndex = 6;
+            ESP.Text = "绘制方框";
+            ESP.UseVisualStyleBackColor = true;
+            ESP.CheckedChanged += ESP_CheckedChanged;
+            // 
+            // ESPTimer
+            // 
+            ESPTimer.Tick += ESPTimer_Tick;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(9F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(660, 264);
+            Controls.Add(ESP);
             Controls.Add(PlantsInvincible);
             Controls.Add(AutomaticCollection);
             Controls.Add(Overlap);
@@ -150,5 +168,7 @@
         private CheckBox Overlap;
         private CheckBox AutomaticCollection;
         private CheckBox PlantsInvincible;
+        private CheckBox ESP;
+        private System.Windows.Forms.Timer ESPTimer;
     }
 }

@@ -149,6 +149,24 @@ namespace PVZCheat
         }
 
         /// <summary>
+        /// 读内存浮点数
+        /// </summary>
+        /// <param name="processHandle"></param>
+        /// <param name="lpBaseAddress"></param>
+        /// <returns></returns>
+        public static float ReadMemoryFloat(IntPtr processHandle, IntPtr lpBaseAddress)
+        {
+            int bytesRead;
+            byte[] buffer = new byte[1024];
+            bool success = Win32DllImport.ReadProcessMemory(processHandle, lpBaseAddress, buffer, buffer.Length, out bytesRead);
+            if (success)
+            {
+                return BitConverter.ToSingle(buffer, 0);
+            }
+            return -1;
+        }
+
+        /// <summary>
         /// 读内存字节
         /// </summary>
         /// <param name="processHandle">进程句柄</param>

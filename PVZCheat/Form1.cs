@@ -7,14 +7,16 @@ using Veldrid;
 using Veldrid.StartupUtilities;
 using System.Text;
 using System.Windows.Forms;
+using static Win32DllImport;
+using Vulkan.Win32;
 
 namespace PVZCheat
 {
     public partial class Form1 : Form
     {
-        private static int processId;
-        private Int64 address;
-
+        private static int _processId;
+        private Int64 _address;
+        private Int32 _windowHandle;
         #region imgui
         private static Sdl2Window _window;
         private static GraphicsDevice _gd;
@@ -26,8 +28,7 @@ namespace PVZCheat
         private static float _f = 0.0f;
         private static int _counter = 0;
         private static int _dragInt = 0;
-        private static Vector3 _clearColor = new Vector3(0.45f, 0.55f, 0.6f);
-        private static bool _showImGuiDemoWindow = true;
+        private static Vector3 _clearColor = new Vector3(0, 0, 0);
         private static bool _showAnotherWindow = false;
         private static bool _showMemoryEditor = false;
         private static byte[] _memoryEditorData;
@@ -50,51 +51,86 @@ namespace PVZCheat
         {
             Task.Run(() =>
             {
-                // Create window, GraphicsDevice, and all resources necessary for the demo.
-                VeldridStartup.CreateWindowAndGraphicsDevice(
-                    new WindowCreateInfo(50, 50, 1280, 720, 0, "ImGui.NET Sample Program"),
-                    new GraphicsDeviceOptions(true, null, true, ResourceBindingModel.Improved, true, true),
-                    out _window,
-                    out _gd);
-                _window.Resized += () =>
+                _windowHandle = (int)FindWindow("MainWindow", "Plants vs. Zombies");
+                if (_windowHandle != -1)
                 {
-                    _gd.MainSwapchain.Resize((uint)_window.Width, (uint)_window.Height);
-                    _controller.WindowResized(_window.Width, _window.Height);
-                };
-                _cl = _gd.ResourceFactory.CreateCommandList();
-                _controller = new ImGuiController(_gd, _gd.MainSwapchain.Framebuffer.OutputDescription, _window.Width, _window.Height);
-                // _memoryEditor = new MemoryEditor();
-                Random random = new Random();
-                _memoryEditorData = Enumerable.Range(0, 1024).Select(i => (byte)random.Next(255)).ToArray();
+                    RECT rect;
+                    GetWindowRect(_windowHandle, out rect);
 
-                var stopwatch = Stopwatch.StartNew();
-                float deltaTime = 0f;
-                // Main application loop
-                while (_window.Exists)
-                {
-                    deltaTime = stopwatch.ElapsedTicks / (float)Stopwatch.Frequency;
-                    stopwatch.Restart();
-                    InputSnapshot snapshot = _window.PumpEvents();
-                    if (!_window.Exists) { break; }
-                    _controller.Update(deltaTime, snapshot); // Feed the input events to our ImGui controller, which passes them through to ImGui.
+                    int width = rect.Right - rect.Left;
+                    int height = rect.Bottom - rect.Top;
+                    // Create window, GraphicsDevice, and all resources necessary for the demo.
+                    VeldridStartup.CreateWindowAndGraphicsDevice(
+                        new WindowCreateInfo(rect.Left , rect.Top, width + 5, height + 5, Veldrid.WindowState.BorderlessFullScreen, "ImGui.NET Sample Program"),
+                        new GraphicsDeviceOptions(true, null, true, ResourceBindingModel.Improved, true, true),
+                        out _window,
+                        out _gd);
+                    _window.Resized += () =>
+                    {
+                        _gd.MainSwapchain.Resize((uint)_window.Width, (uint)_window.Height);
+                        _controller.WindowResized(_window.Width, _window.Height);
+                    };
+                    
+                    ShowWindow(_window.Handle, SW_SHOWDEFAULT);
+                    UpdateWindow(_window.Handle);
+                    // 设置窗口扩展样式
+                    int exStyle = (int)GetWindowLong32(_window.Handle, GWL_EXSTYLE);
+                    SetWindowLong(_window.Handle, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
+                    // 设置窗口透明度
+                    byte alpha = 255; // 透明度值，取值范围为 0（完全透明）到 255（完全不透明）
+                    SetLayeredWindowAttributes(_window.Handle, 0, alpha, LWA_ALPHA);
 
-                    SubmitUI();
+                    if (Environment.OSVersion.Version.Major >= 6)
+                    {
+                        var margins = new MARGINS
+                        {
+                            cxLeftWidth = -1,
+                            cxRightWidth = 0,
+                            cyTopHeight = 0,
+                            cyBottomHeight = 0
+                        };
+                        DwmExtendFrameIntoClientArea(_window.Handle, ref margins);
+                    }
+                   
+                    _cl = _gd.ResourceFactory.CreateCommandList();
+                    _controller = new ImGuiController(_gd, _gd.MainSwapchain.Framebuffer.OutputDescription, _window.Width, _window.Height);
+                    // _memoryEditor = new MemoryEditor();
+                    Random random = new Random();
+                    _memoryEditorData = Enumerable.Range(0, 1024).Select(i => (byte)random.Next(255)).ToArray();
 
-                    FirstBox();
-                    _cl.Begin();
-                    _cl.SetFramebuffer(_gd.MainSwapchain.Framebuffer);
-                    _cl.ClearColorTarget(0, new RgbaFloat(_clearColor.X, _clearColor.Y, _clearColor.Z, 1f));
-                    _controller.Render(_gd, _cl);
-                    _cl.End();
-                    _gd.SubmitCommands(_cl);
-                    _gd.SwapBuffers(_gd.MainSwapchain);
+                    var stopwatch = Stopwatch.StartNew();
+                    float deltaTime = 0f;
+                    // Main application loop
+                    while (_window.Exists)
+                    {
+                        deltaTime = stopwatch.ElapsedTicks / (float)Stopwatch.Frequency;
+                        stopwatch.Restart();
+                        InputSnapshot snapshot = _window.PumpEvents();
+                        if (!_window.Exists) { break; }
+                        _controller.Update(deltaTime, snapshot); // Feed the input events to our ImGui controller, which passes them through to ImGui.
+
+                        uint uFlags = 0x0001 | 0x0002;  // SWP_NOSIZE | SWP_NOMOVE，保持原始大小和位置
+                        SubmitUI();
+                        MoveWindow(_window.Handle, rect.Left - 5, rect.Top, width + 10, height + 5, true);
+                        SetWindowPos(_window.Handle, -1, 0, 0, 0, 0, uFlags);
+                        // Render
+                        FirstBox();
+                        _cl.Begin();
+                        _cl.SetFramebuffer(_gd.MainSwapchain.Framebuffer);
+                        _cl.ClearColorTarget(0, new RgbaFloat(_clearColor.X, _clearColor.Y, _clearColor.Z, 0f));
+                        _controller.Render(_gd, _cl);
+                        _cl.End();
+                        _gd.SubmitCommands(_cl);
+                        _gd.SwapBuffers(_gd.MainSwapchain);
+                    }
+
+                    // Clean up Veldrid resources
+                    _gd.WaitForIdle();
+                    _controller.Dispose();
+                    _cl.Dispose();
+                    _gd.Dispose();
                 }
-
-                // Clean up Veldrid resources
-                _gd.WaitForIdle();
-                _controller.Dispose();
-                _cl.Dispose();
-                _gd.Dispose();
+               
             });
         }
 
@@ -107,9 +143,9 @@ namespace PVZCheat
         private void SunshineTimer_Tick(object sender, EventArgs e)
         {
             // 打开进程
-            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, processId);
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
             // 读取内存
-            int offset1 = MemoryTool.ReadMemoryInt32(processHandle, (nint)(address + 0x355E0C));
+            int offset1 = MemoryTool.ReadMemoryInt32(processHandle, (nint)(_address + 0x355E0C));
             int offset2 = MemoryTool.ReadMemoryInt32(processHandle, offset1 + 0x868);
             // 写入内存
             MemoryTool.WriteMemoryInt32(processHandle, offset2 + 0x5578, 2000);
@@ -141,24 +177,24 @@ namespace PVZCheat
         private void KillZombie_CheckedChanged(object sender, EventArgs e)
         {
             // 打开进程
-            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, processId);
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
 
             if (KillZombie.Checked)
             {
                 // 这个是僵尸本体秒杀
                 byte[] buffer = [0x29, 0xED, 0x90, 0x90];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x14D0BA, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x14D0BA, buffer);
 
                 //// 护甲秒杀
                 byte[] buffer2 = [0xEB, 0x02];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x14CDCE, buffer2);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x14CDCE, buffer2);
             }
             else
             {
                 byte[] buffer = [0x2B, 0x6C, 0x24, 0x20];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x14D0BA, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x14D0BA, buffer);
                 byte[] buffer2 = [0x7C, 0x02];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x14CDCE, buffer2);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x14CDCE, buffer2);
             }
         }
 
@@ -213,11 +249,11 @@ namespace PVZCheat
         /// <param name="e"></param>
         private void Init_Tick(object sender, EventArgs e)
         {
-            processId = MemoryTool.GetProcessId("PlantsVsZombies");
+            _processId = MemoryTool.GetProcessId("PlantsVsZombies");
 
 
             // 如果进程ID和地址都不为0，说明找到了进程
-            if (processId == 0)
+            if (_processId == 0)
             {
                 // 如果没有找到进程，归为休眠状态
                 List<CheckBox> checkedCheckboxes = GetCheckedCheckBoxes(this);
@@ -233,10 +269,10 @@ namespace PVZCheat
             }
             else
             {
-                address = MemoryTool.GteModuleAddress(processId, "PlantsVsZombies.exe");
+                _address = MemoryTool.GteModuleAddress(_processId, "PlantsVsZombies.exe");
                 List<CheckBox> checkboxes = GetCheckBoxes(this);
                 // 如果地址为0，没有获取到模块地址
-                if (address == 0)
+                if (_address == 0)
                 {
                     foreach (var checkbox in checkboxes)
                     {
@@ -259,9 +295,9 @@ namespace PVZCheat
         private void RefreshTimer_Tick(object sender, EventArgs e)
         {
             // 打开进程
-            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, processId);
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
 
-            var offset1 = MemoryTool.ReadMemoryInt32(processHandle, (nint)address + 0x355E0C);
+            var offset1 = MemoryTool.ReadMemoryInt32(processHandle, (nint)_address + 0x355E0C);
             var offset2 = MemoryTool.ReadMemoryInt32(processHandle, offset1 + 0x868);
             var offset3 = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0x15C);
             var count = MemoryTool.ReadMemoryInt32(processHandle, offset3 + 0x24);
@@ -271,7 +307,7 @@ namespace PVZCheat
                 for (int i = 0; i < count; i++)
                 {
                     MemoryTool.WriteMemoryInt32(processHandle, offset3 + refresh, 10000);
-                    //Debug.WriteLine(i.ToString() + ":" + MemoryTool.ReadMemoryInt32(processHandle, offset3 + refresh));
+                    //Debug.WriteLine(i.ToString() + ":" + MemoryTool.ReadMemoryInt32(processHandle, zombie + refresh));
                     refresh += 0x50;
                 }
             }
@@ -302,17 +338,17 @@ namespace PVZCheat
         private void Overlap_CheckedChanged(object sender, EventArgs e)
         {
             // 打开进程
-            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, processId);
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
 
             if (Overlap.Checked)
             {
                 byte[] buffer = [0xE9, 0x47, 0x09, 0x00, 0x00];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x1BD2D, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x1BD2D, buffer);
             }
             else
             {
                 byte[] buffer = [0x0F, 0x84, 0x46, 0x09, 0x00, 0x00];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x1BD2D, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x1BD2D, buffer);
             }
 
         }
@@ -320,17 +356,17 @@ namespace PVZCheat
         private void AutomaticCollection_CheckedChanged(object sender, EventArgs e)
         {
             // 打开进程
-            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, processId);
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
 
             if (AutomaticCollection.Checked)
             {
                 byte[] buffer = [0xEB, 0x09];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x3CC72, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x3CC72, buffer);
             }
             else
             {
                 byte[] buffer = [0x75, 0x09];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x3CC72, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x3CC72, buffer);
             }
         }
 
@@ -342,17 +378,17 @@ namespace PVZCheat
         private void PlantsInvincible_CheckedChanged(object sender, EventArgs e)
         {
             // 打开进程
-            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, processId);
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
 
             if (PlantsInvincible.Checked)
             {
                 byte[] buffer = [0x83, 0x6E, 0x40, 0xFC];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x14BA6A, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x14BA6A, buffer);
             }
             else
             {
                 byte[] buffer = [0x83, 0x46, 0x40, 0xFC];
-                MemoryTool.WriteMemoryBytes(processHandle, (nint)address + 0x14BA6A, buffer);
+                MemoryTool.WriteMemoryBytes(processHandle, (nint)_address + 0x14BA6A, buffer);
             }
         }
 
@@ -360,7 +396,7 @@ namespace PVZCheat
         private static unsafe void SubmitUI()
         {
             ImGui.Begin("Another Window", ref _showAnotherWindow);
-           
+
             ImGui.Text("Hello from another window!");
             ImGui.End();
 
@@ -373,7 +409,6 @@ namespace PVZCheat
 
                 ImGui.Text($"Mouse position: {ImGui.GetMousePos()}");
 
-                ImGui.Checkbox("ImGui Demo Window", ref _showImGuiDemoWindow);                 // Edit bools storing our windows open/close state
                 ImGui.Checkbox("Another Window", ref _showAnotherWindow);
                 ImGui.Checkbox("Memory Editor", ref _showMemoryEditor);
                 if (ImGui.Button("Button"))                                         // Buttons return true when clicked (NB: most widgets return true when edited/activated)
@@ -397,14 +432,6 @@ namespace PVZCheat
                 ImGui.End();
             }
 
-            // 3. Show the ImGui demo window. Most of the sample code is in ImGui.ShowDemoWindow(). Read its code to learn more about Dear ImGui!
-            if (_showImGuiDemoWindow)
-            {
-                // Normally user code doesn't need/want to call this because positions are saved in .ini file anyway.
-                // Here we just want to make the demo initial state a bit more friendly!
-                ImGui.SetNextWindowPos(new Vector2(650, 20), ImGuiCond.FirstUseEver);
-                ImGui.ShowDemoWindow(ref _showImGuiDemoWindow);
-            }
 
             if (ImGui.TreeNode("Tabs"))
             {
@@ -522,5 +549,58 @@ namespace PVZCheat
             DrawUI.TransparentRectangle(new Vector2(500, 100), new Vector2(200, 200), color);
         }
         #endregion
+
+        /// <summary>
+        /// 方框绘制
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void ESP_CheckedChanged(object sender, EventArgs e)
+        {
+            if (ESP.Checked)
+            {
+                ESPTimer.Enabled = true;
+            }
+            else
+            {
+                ESPTimer.Enabled = false;
+            }
+        }
+        
+        /// <summary>
+        /// 方框绘制周期事件
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
+        private void ESPTimer_Tick(object sender, EventArgs e)
+        {
+            // 打开进程
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
+
+            var offset1 = MemoryTool.ReadMemoryInt32(processHandle, (nint)_address + 0x355E0C);
+            var offset2 = MemoryTool.ReadMemoryInt32(processHandle, offset1 + 0x868);
+            var offset3 = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xA8);
+            var count = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xb8);
+            var zombieIndex = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xb4);
+            List<int> zombieList = new List<int>();
+            for (int i = zombieIndex -1; i >= 0; i--)
+            {
+                var zombie = MemoryTool.ReadMemoryInt32(processHandle, offset3 + i * 0x168);
+                if(41004408 == zombie)
+                {
+                    int health = MemoryTool.ReadMemoryInt32(processHandle, offset3 + i * 0x168 + 0xC8);
+                    if (health == 0)
+                        continue;
+                    var x = MemoryTool.ReadMemoryFloat(processHandle, offset3 + i * 0x168 + 0x2C);
+                    var y = MemoryTool.ReadMemoryFloat(processHandle, offset3 + i * 0x168 + 0x30);
+                    Debug.Print("=========");
+                    Debug.Print("Zmobie:" + (i + 1));
+                    Debug.Print("X:" + x.ToString("r"));
+                    Debug.Print("Y:" + y.ToString("r"));
+                    Debug.Print("Health:" + health.ToString("r"));
+                }
+            }
+
+        }
     }
 }

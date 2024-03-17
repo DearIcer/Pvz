@@ -65,6 +65,7 @@ namespace ImGuiNET
             io.ConfigFlags |= ImGuiConfigFlags.NavEnableKeyboard |
                 ImGuiConfigFlags.DockingEnable;
             io.Fonts.Flags |= ImFontAtlasFlags.NoBakedLines;
+            io.ConfigViewportsNoAutoMerge = true;
 
             CreateDeviceResources(gd, outputDescription);
             SetPerFrameImGuiData(1f / 60f);
