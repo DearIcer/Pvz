@@ -40,6 +40,11 @@
             PlantsInvincible = new CheckBox();
             ESP = new CheckBox();
             ESPTimer = new System.Windows.Forms.Timer(components);
+            textBox1 = new TextBox();
+            textBox2 = new TextBox();
+            textBox3 = new TextBox();
+            textBox4 = new TextBox();
+            button1 = new Button();
             SuspendLayout();
             // 
             // InfiniteSunshine
@@ -137,11 +142,54 @@
             // 
             ESPTimer.Tick += ESPTimer_Tick;
             // 
+            // textBox1
+            // 
+            textBox1.Location = new Point(27, 130);
+            textBox1.Name = "textBox1";
+            textBox1.Size = new Size(125, 27);
+            textBox1.TabIndex = 7;
+            // 
+            // textBox2
+            // 
+            textBox2.Location = new Point(158, 130);
+            textBox2.Name = "textBox2";
+            textBox2.Size = new Size(125, 27);
+            textBox2.TabIndex = 8;
+            // 
+            // textBox3
+            // 
+            textBox3.Location = new Point(27, 163);
+            textBox3.Name = "textBox3";
+            textBox3.Size = new Size(125, 27);
+            textBox3.TabIndex = 10;
+            // 
+            // textBox4
+            // 
+            textBox4.Location = new Point(169, 163);
+            textBox4.Name = "textBox4";
+            textBox4.Size = new Size(125, 27);
+            textBox4.TabIndex = 9;
+            // 
+            // button1
+            // 
+            button1.Location = new Point(310, 131);
+            button1.Name = "button1";
+            button1.Size = new Size(94, 29);
+            button1.TabIndex = 11;
+            button1.Text = "button1";
+            button1.UseVisualStyleBackColor = true;
+            button1.Click += button1_Click;
+            // 
             // Form1
             // 
             AutoScaleDimensions = new SizeF(9F, 20F);
             AutoScaleMode = AutoScaleMode.Font;
             ClientSize = new Size(660, 264);
+            Controls.Add(button1);
+            Controls.Add(textBox3);
+            Controls.Add(textBox4);
+            Controls.Add(textBox2);
+            Controls.Add(textBox1);
             Controls.Add(ESP);
             Controls.Add(PlantsInvincible);
             Controls.Add(AutomaticCollection);
@@ -170,5 +218,10 @@
         private CheckBox PlantsInvincible;
         private CheckBox ESP;
         private System.Windows.Forms.Timer ESPTimer;
+        private TextBox textBox1;
+        private TextBox textBox2;
+        private TextBox textBox3;
+        private TextBox textBox4;
+        private Button button1;
     }
 }

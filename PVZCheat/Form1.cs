@@ -1,14 +1,10 @@
 using ImGuiNET;
-using System;
 using System.Diagnostics;
 using System.Numerics;
 using Veldrid.Sdl2;
 using Veldrid;
 using Veldrid.StartupUtilities;
-using System.Text;
-using System.Windows.Forms;
 using static Win32DllImport;
-using Vulkan.Win32;
 
 namespace PVZCheat
 {
@@ -16,7 +12,7 @@ namespace PVZCheat
     {
         private static int _processId;
         private Int64 _address;
-        private Int32 _windowHandle;
+        private Int32 _gameWindowHandle;
         #region imgui
         private static Sdl2Window _window;
         private static GraphicsDevice _gd;
@@ -29,12 +25,10 @@ namespace PVZCheat
         private static int _counter = 0;
         private static int _dragInt = 0;
         private static Vector3 _clearColor = new Vector3(0, 0, 0);
-        private static bool _showAnotherWindow = false;
-        private static bool _showMemoryEditor = false;
         private static byte[] _memoryEditorData;
         private static uint s_tab_bar_flags = (uint)ImGuiTabBarFlags.Reorderable;
         static bool[] s_opened = { true, true, true, true }; // Persistent user state
-
+        private static bool _enableESP = false;
         static void SetThing(out float i, float val) { i = val; }
         #endregion
         public Form1()
@@ -51,17 +45,17 @@ namespace PVZCheat
         {
             Task.Run(() =>
             {
-                _windowHandle = (int)FindWindow("MainWindow", "Plants vs. Zombies");
-                if (_windowHandle != -1)
+                _gameWindowHandle = (int)FindWindow("MainWindow", "Plants vs. Zombies");
+                if (_gameWindowHandle != -1)
                 {
                     RECT rect;
-                    GetWindowRect(_windowHandle, out rect);
+                    GetWindowRect(_gameWindowHandle, out rect);
 
                     int width = rect.Right - rect.Left;
                     int height = rect.Bottom - rect.Top;
                     // Create window, GraphicsDevice, and all resources necessary for the demo.
                     VeldridStartup.CreateWindowAndGraphicsDevice(
-                        new WindowCreateInfo(rect.Left , rect.Top, width + 5, height + 5, Veldrid.WindowState.BorderlessFullScreen, "ImGui.NET Sample Program"),
+                        new WindowCreateInfo(rect.Left, rect.Top, width + 5, height + 5, Veldrid.WindowState.Normal, "ImGui.NET Sample Program"),
                         new GraphicsDeviceOptions(true, null, true, ResourceBindingModel.Improved, true, true),
                         out _window,
                         out _gd);
@@ -70,16 +64,30 @@ namespace PVZCheat
                         _gd.MainSwapchain.Resize((uint)_window.Width, (uint)_window.Height);
                         _controller.WindowResized(_window.Width, _window.Height);
                     };
-                    
-                    ShowWindow(_window.Handle, SW_SHOWDEFAULT);
-                    UpdateWindow(_window.Handle);
-                    // 设置窗口扩展样式
-                    int exStyle = (int)GetWindowLong32(_window.Handle, GWL_EXSTYLE);
-                    SetWindowLong(_window.Handle, GWL_EXSTYLE, exStyle | WS_EX_LAYERED);
-                    // 设置窗口透明度
-                    byte alpha = 255; // 透明度值，取值范围为 0（完全透明）到 255（完全不透明）
-                    SetLayeredWindowAttributes(_window.Handle, 0, alpha, LWA_ALPHA);
 
+                    // 获取当前窗口样式
+                    int style = (int)GetWindowLong32(_window.Handle, GWL_STYLE);
+
+                    // 移除标题栏、边框等样式
+                    style &= ~(WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_BORDER);
+
+                    // 设置新的窗口样式
+                    SetWindowLong(_window.Handle, GWL_STYLE, style);
+
+                    // 使窗口大小和位置参数生效
+                    SetWindowPos(_window.Handle, IntPtr.Zero, 0, 0, 0, 0, SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE);
+
+                    // 设置窗口为透明样式
+                    int exStyle = (int)GetWindowLong32(_window.Handle, GWL_EXSTYLE);
+                    exStyle |= WS_EX_LAYERED;
+                    SetWindowLong(_window.Handle, GWL_EXSTYLE, exStyle);
+
+                    // 设置窗口透明度（0-255）
+                    byte opacity = 255; // 设置为半透明，可根据需要调整值
+
+                    SetLayeredWindowAttributes(_window.Handle, 0, opacity, LWA_ALPHA);
+
+                    //MSGloop();
                     if (Environment.OSVersion.Version.Major >= 6)
                     {
                         var margins = new MARGINS
@@ -91,7 +99,7 @@ namespace PVZCheat
                         };
                         DwmExtendFrameIntoClientArea(_window.Handle, ref margins);
                     }
-                   
+
                     _cl = _gd.ResourceFactory.CreateCommandList();
                     _controller = new ImGuiController(_gd, _gd.MainSwapchain.Framebuffer.OutputDescription, _window.Width, _window.Height);
                     // _memoryEditor = new MemoryEditor();
@@ -110,11 +118,21 @@ namespace PVZCheat
                         _controller.Update(deltaTime, snapshot); // Feed the input events to our ImGui controller, which passes them through to ImGui.
 
                         uint uFlags = 0x0001 | 0x0002;  // SWP_NOSIZE | SWP_NOMOVE，保持原始大小和位置
-                        SubmitUI();
-                        MoveWindow(_window.Handle, rect.Left - 5, rect.Top, width + 10, height + 5, true);
-                        SetWindowPos(_window.Handle, -1, 0, 0, 0, 0, uFlags);
+                        //SubmitUI();
+
+
+                        //MoveWindow(_window.Handle, rect.Left - 5, rect.Top, width + 10, height + 5, false);
+                        //SetWindowPos(_window.Handle, -1, rect.Left - 5, rect.Top, width + 10, height + 5, uFlags);
                         // Render
                         FirstBox();
+                        if (_enableESP)
+                        {
+                            ImGui.Begin("aa");
+                            DrawESP();
+                            ImGui.End();
+                   
+                        }
+                        RefreshDrawWindow();
                         _cl.Begin();
                         _cl.SetFramebuffer(_gd.MainSwapchain.Framebuffer);
                         _cl.ClearColorTarget(0, new RgbaFloat(_clearColor.X, _clearColor.Y, _clearColor.Z, 0f));
@@ -130,7 +148,7 @@ namespace PVZCheat
                     _cl.Dispose();
                     _gd.Dispose();
                 }
-               
+
             });
         }
 
@@ -395,140 +413,6 @@ namespace PVZCheat
         #region imgui
         private static unsafe void SubmitUI()
         {
-            ImGui.Begin("Another Window", ref _showAnotherWindow);
-
-            ImGui.Text("Hello from another window!");
-            ImGui.End();
-
-            {
-                ImGui.Text("");
-                ImGui.Text(string.Empty);
-                ImGui.Text("hi !");                                        // Display some text (you can use a format string too)
-                ImGui.SliderFloat("float", ref _f, 0, 1, _f.ToString("0.000"));  // Edit 1 float using a slider from 0.0f to 1.0f    
-                //ImGui.ColorEdit3("clear color", ref _clearColor);                   // Edit 3 floats representing a color
-
-                ImGui.Text($"Mouse position: {ImGui.GetMousePos()}");
-
-                ImGui.Checkbox("Another Window", ref _showAnotherWindow);
-                ImGui.Checkbox("Memory Editor", ref _showMemoryEditor);
-                if (ImGui.Button("Button"))                                         // Buttons return true when clicked (NB: most widgets return true when edited/activated)
-                    _counter++;
-                ImGui.SameLine(0, -1);
-                ImGui.Text($"counter = {_counter}");
-
-                ImGui.DragInt("Draggable Int", ref _dragInt);
-
-                float framerate = ImGui.GetIO().Framerate;
-                ImGui.Text($"Application average {1000.0f / framerate:0.##} ms/frame ({framerate:0.#} FPS)");
-            }
-
-            // 2. Show another simple window. In most cases you will use an explicit Begin/End pair to name your windows.
-            if (_showAnotherWindow)
-            {
-                ImGui.Begin("Another Window", ref _showAnotherWindow);
-                ImGui.Text("Hello from another window!");
-                if (ImGui.Button("Close Me"))
-                    _showAnotherWindow = false;
-                ImGui.End();
-            }
-
-
-            if (ImGui.TreeNode("Tabs"))
-            {
-                if (ImGui.TreeNode("Basic"))
-                {
-                    ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags.None;
-                    if (ImGui.BeginTabBar("MyTabBar", tab_bar_flags))
-                    {
-                        if (ImGui.BeginTabItem("Avocado"))
-                        {
-                            ImGui.Text("This is the Avocado tab!\nblah blah blah blah blah");
-                            ImGui.EndTabItem();
-                        }
-                        if (ImGui.BeginTabItem("Broccoli"))
-                        {
-                            ImGui.Text("This is the Broccoli tab!\nblah blah blah blah blah");
-                            ImGui.EndTabItem();
-                        }
-                        if (ImGui.BeginTabItem("Cucumber"))
-                        {
-                            ImGui.Text("This is the Cucumber tab!\nblah blah blah blah blah");
-                            ImGui.EndTabItem();
-                        }
-                        ImGui.EndTabBar();
-                    }
-                    ImGui.Separator();
-                    ImGui.TreePop();
-                }
-
-                if (ImGui.TreeNode("Advanced & Close Button"))
-                {
-                    // Expose a couple of the available flags. In most cases you may just call BeginTabBar() with no flags (0).
-                    ImGui.CheckboxFlags("ImGuiTabBarFlags_Reorderable", ref s_tab_bar_flags, (uint)ImGuiTabBarFlags.Reorderable);
-                    ImGui.CheckboxFlags("ImGuiTabBarFlags_AutoSelectNewTabs", ref s_tab_bar_flags, (uint)ImGuiTabBarFlags.AutoSelectNewTabs);
-                    ImGui.CheckboxFlags("ImGuiTabBarFlags_NoCloseWithMiddleMouseButton", ref s_tab_bar_flags, (uint)ImGuiTabBarFlags.NoCloseWithMiddleMouseButton);
-                    if ((s_tab_bar_flags & (uint)ImGuiTabBarFlags.FittingPolicyMask) == 0)
-                        s_tab_bar_flags |= (uint)ImGuiTabBarFlags.FittingPolicyDefault;
-                    if (ImGui.CheckboxFlags("ImGuiTabBarFlags_FittingPolicyResizeDown", ref s_tab_bar_flags, (uint)ImGuiTabBarFlags.FittingPolicyResizeDown))
-                        s_tab_bar_flags &= ~((uint)ImGuiTabBarFlags.FittingPolicyMask ^ (uint)ImGuiTabBarFlags.FittingPolicyResizeDown);
-                    if (ImGui.CheckboxFlags("ImGuiTabBarFlags_FittingPolicyScroll", ref s_tab_bar_flags, (uint)ImGuiTabBarFlags.FittingPolicyScroll))
-                        s_tab_bar_flags &= ~((uint)ImGuiTabBarFlags.FittingPolicyMask ^ (uint)ImGuiTabBarFlags.FittingPolicyScroll);
-
-                    // Tab Bar
-                    string[] names = { "Artichoke", "Beetroot", "Celery", "Daikon" };
-
-                    for (int n = 0; n < s_opened.Length; n++)
-                    {
-                        if (n > 0) { ImGui.SameLine(); }
-                        ImGui.Checkbox(names[n], ref s_opened[n]);
-                    }
-
-                    // Passing a bool* to BeginTabItem() is similar to passing one to Begin(): the underlying bool will be set to false when the tab is closed.
-                    if (ImGui.BeginTabBar("MyTabBar", (ImGuiTabBarFlags)s_tab_bar_flags))
-                    {
-                        for (int n = 0; n < s_opened.Length; n++)
-                            if (s_opened[n] && ImGui.BeginTabItem(names[n], ref s_opened[n]))
-                            {
-                                ImGui.Text($"This is the {names[n]} tab!");
-                                if ((n & 1) != 0)
-                                    ImGui.Text("I am an odd tab.");
-                                ImGui.EndTabItem();
-                            }
-                        ImGui.EndTabBar();
-                    }
-                    ImGui.Separator();
-                    ImGui.TreePop();
-                }
-                ImGui.TreePop();
-            }
-
-            ImGuiIOPtr io = ImGui.GetIO();
-            SetThing(out io.DeltaTime, 2f);
-
-            if (_showMemoryEditor)
-            {
-                ImGui.Text("Memory editor currently supported.");
-                // _memoryEditor.Draw("Memory Editor", _memoryEditorData, _memoryEditorData.Length);
-            }
-
-            // On .NET Standard 2.1 or greater, you can use ReadOnlySpan<char> instead of string to prevent allocations.
-            long allocBytesStringStart = GC.GetAllocatedBytesForCurrentThread();
-            ImGui.Text($"Hello, world {Random.Shared.Next(100)}!");
-            long allocBytesStringEnd = GC.GetAllocatedBytesForCurrentThread() - allocBytesStringStart;
-            Console.WriteLine("GC (string): " + allocBytesStringEnd);
-
-            long allocBytesSpanStart = GC.GetAllocatedBytesForCurrentThread();
-            ImGui.Text($"Hello, world {Random.Shared.Next(100)}!".AsSpan()); // Note that this call will STILL allocate memory due to string interpolation, but you can prevent that from happening by using an InterpolatedStringHandler.
-            long allocBytesSpanEnd = GC.GetAllocatedBytesForCurrentThread() - allocBytesSpanStart;
-            Console.WriteLine("GC (span): " + allocBytesSpanEnd);
-
-            ImGui.Text("Empty span:");
-            ImGui.SameLine();
-            ImGui.GetWindowDrawList().AddText(ImGui.GetCursorScreenPos(), uint.MaxValue, ReadOnlySpan<char>.Empty);
-            ImGui.NewLine();
-            ImGui.GetWindowDrawList().AddText(ImGui.GetCursorScreenPos(), uint.MaxValue, $"{ImGui.CalcTextSize("h")}");
-            ImGui.NewLine();
-            ImGui.TextUnformatted("TextUnformatted now passes end ptr but isn't cut off");
         }
 
         /// <summary>
@@ -540,13 +424,13 @@ namespace PVZCheat
 
             int colorValue = (color.A << 24) + (color.R << 16) + (color.G << 8) + color.B;
 
-            ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 100), new Vector2(500, 200), (uint)colorValue);
-            ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 100), new Vector2(700, 100), (uint)colorValue);
+            //ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 100), new Vector2(500, 200), (uint)colorValue);
+            //ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 100), new Vector2(700, 100), (uint)colorValue);
 
-            ImGui.GetForegroundDrawList().AddLine(new Vector2(700, 100), new Vector2(700, 200), (uint)colorValue);
-            ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 200), new Vector2(700, 200), (uint)colorValue);
+            //ImGui.GetForegroundDrawList().AddLine(new Vector2(700, 100), new Vector2(700, 200), (uint)colorValue);
+            //ImGui.GetForegroundDrawList().AddLine(new Vector2(500, 200), new Vector2(700, 200), (uint)colorValue);
 
-            DrawUI.TransparentRectangle(new Vector2(500, 100), new Vector2(200, 200), color);
+            DrawUI.TransparentRectangle(new Vector2(100, 100), new Vector2(1, 1), color);
         }
         #endregion
 
@@ -559,14 +443,15 @@ namespace PVZCheat
         {
             if (ESP.Checked)
             {
-                ESPTimer.Enabled = true;
+                _enableESP = true;
             }
             else
             {
-                ESPTimer.Enabled = false;
+                _enableESP = false;
             }
+           
         }
-        
+
         /// <summary>
         /// 方框绘制周期事件
         /// </summary>
@@ -583,10 +468,10 @@ namespace PVZCheat
             var count = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xb8);
             var zombieIndex = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xb4);
             List<int> zombieList = new List<int>();
-            for (int i = zombieIndex -1; i >= 0; i--)
+            for (int i = zombieIndex - 1; i >= 0; i--)
             {
                 var zombie = MemoryTool.ReadMemoryInt32(processHandle, offset3 + i * 0x168);
-                if(41004408 == zombie)
+                if (41004408 == zombie)
                 {
                     int health = MemoryTool.ReadMemoryInt32(processHandle, offset3 + i * 0x168 + 0xC8);
                     if (health == 0)
@@ -601,6 +486,81 @@ namespace PVZCheat
                 }
             }
 
+        }
+        private void DrawESP()
+        {
+            // 打开进程
+            IntPtr processHandle = Win32DllImport.OpenProcess(Win32DllImport.PROCESS_ALL_ACCESS | Win32DllImport.PROCESS_VM_READ | Win32DllImport.PROCESS_VM_WRITE | Win32DllImport.PROCESS_VM_OPERATION, false, _processId);
+
+            var offset1 = MemoryTool.ReadMemoryInt32(processHandle, (nint)_address + 0x355E0C);
+            var offset2 = MemoryTool.ReadMemoryInt32(processHandle, offset1 + 0x868);
+            var offset3 = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xA8);
+            var count = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xb8);
+            var zombieIndex = MemoryTool.ReadMemoryInt32(processHandle, offset2 + 0xb4);
+            for (int i = zombieIndex - 1; i >= 0; i--)
+            {
+                var zombie = MemoryTool.ReadMemoryInt32(processHandle, offset3 + i * 0x168);
+                if (41004408 == zombie)
+                {
+                    int health = MemoryTool.ReadMemoryInt32(processHandle, offset3 + i * 0x168 + 0xC8);
+                    if (health == 0)
+                        continue;
+                    var x = MemoryTool.ReadMemoryFloat(processHandle, offset3 + i * 0x168 + 0x2C);
+                    var y = MemoryTool.ReadMemoryFloat(processHandle, offset3 + i * 0x168 + 0x30);
+
+                    Color color = Color.FromArgb(255, 0, 0, 255);
+
+                    int colorValue = (color.A << 24) + (color.R << 16) + (color.G << 8) + color.B;
+                    ImGui.GetForegroundDrawList().AddText(new Vector2(x, y), (uint)colorValue, "Zombie");
+                    Debug.Print("=========");
+                    Debug.Print("Zmobie:" + (i + 1));
+                    Debug.Print("X:" + x.ToString("r"));
+                    Debug.Print("Y:" + y.ToString("r"));
+                    Debug.Print("Health:" + health.ToString("r"));
+                }
+            }
+        }
+
+        private void button1_Click(object sender, EventArgs e)
+        {
+            Color color = Color.FromArgb(50, 255, 255, 255);
+            DrawUI.TransparentRectangle(new Vector2(Convert.ToSingle(textBox1.Text), Convert.ToSingle(textBox2.Text)),
+                new Vector2(Convert.ToSingle(textBox3.Text), Convert.ToSingle(textBox4.Text)),
+                color);
+        }
+
+        /// <summary>
+        /// 刷新绘制窗口
+        /// </summary>
+        private void RefreshDrawWindow()
+        {
+            RECT clientRect;
+            GetClientRect(_gameWindowHandle, out clientRect);
+            POINT upperLeft = new POINT() { X = clientRect.Left, Y = clientRect.Top };
+            ClientToScreen(_gameWindowHandle, ref upperLeft);
+            int gameWidth = clientRect.Right;
+            int gameHeight = clientRect.Bottom;
+            MoveWindow(_window.Handle, upperLeft.X, upperLeft.Y, gameWidth, gameHeight, true);
+            //UpdateWindow(_window.Handle);
+            uint uFlags = 0x0001 | 0x0002;  // SWP_NOSIZE | SWP_NOMOVE，保持原始大小和位置
+            SetWindowPos(_window.Handle, -1, 0, 0, 0, 0, uFlags);
+            BringWindowToTop(_window.Handle);
+            UpdateWindow(_window.Handle);
+        }
+        private void MSGloop()
+        {
+            MSG msg;
+            while (GetMessage(out msg, IntPtr.Zero, 0, 0))
+            {
+                TranslateMessage(ref msg);
+                DispatchMessage(ref msg);
+
+                // 如果需要退出循环，可以在消息处理过程中发送 WM_QUIT 消息
+                if (msg.message == WM_QUIT)
+                {
+                    break;
+                }
+            }
         }
     }
 }

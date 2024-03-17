@@ -67,6 +67,19 @@ public static class Win32DllImport
     public const int WS_EX_LAYERED = 0x80000; // 表示窗口为分层窗口
     public const int LWA_ALPHA = 0x2; // 表示设置窗口透明度
 
+    public const int GWL_STYLE = -16;
+    public const int WS_BORDER = 0x00800000;
+    public const int WS_CAPTION = 0x00C00000;
+    public const int WS_SYSMENU = 0x00080000;
+    public const int WS_MINIMIZEBOX = 0x00020000;
+    public const int WS_MAXIMIZEBOX = 0x00010000;
+
+    public const int SWP_FRAMECHANGED = 0x0020;
+    public const int SWP_NOSIZE = 0x0001;
+    public const int SWP_NOMOVE = 0x0002;
+    public const int SWP_NOZORDER = 0x0004;
+    public const int SWP_NOACTIVATE = 0x0010;
+
     [DllImport("user32.dll", EntryPoint = "GetWindowLong")]
     public static extern IntPtr GetWindowLong32(IntPtr hWnd, int nIndex);
 
@@ -89,6 +102,48 @@ public static class Win32DllImport
         public int cxRightWidth;
         public int cyTopHeight;
         public int cyBottomHeight;
+    }
+
+    #region 刷新窗口用
+     [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool BringWindowToTop(IntPtr hWnd);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    public static extern bool GetClientRect(IntPtr hWnd, out RECT lpRect);
+
+    [DllImport("user32.dll")]
+    public static extern bool ClientToScreen(IntPtr hWnd, ref POINT lpPoint);
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct POINT
+    {
+        public int X;
+        public int Y;
+    }
+    #endregion
+
+    [DllImport("user32.dll")]
+    public static extern bool GetMessage(out MSG lpMsg, IntPtr hWnd, uint wMsgFilterMin, uint wMsgFilterMax);
+
+    [DllImport("user32.dll")]
+    public static extern bool TranslateMessage([In] ref MSG lpMsg);
+
+    [DllImport("user32.dll")]
+    public static extern IntPtr DispatchMessage([In] ref MSG lpmsg);
+
+    public const int WM_QUIT = 0x0012;
+
+    [StructLayout(LayoutKind.Sequential)]
+    public struct MSG
+    {
+        public IntPtr hwnd;
+        public uint message;
+        public IntPtr wParam;
+        public IntPtr lParam;
+        public uint time;
+        public System.Drawing.Point pt;
     }
 }
 

@@ -14,7 +14,7 @@ namespace PVZCheat
         {
             int colorValue = (col.A << 24) + (col.R << 16) + (col.G << 8) + col.B;
             ImGui.GetForegroundDrawList().AddRect(pos, size, (uint)colorValue);
-            ImGui.GetForegroundDrawList().AddRectFilled(pos, size, (uint)colorValue);
+            //ImGui.GetForegroundDrawList().AddRectFilled(pos, size, (uint)colorValue);
         }
     }
 }
